@@ -1,0 +1,57 @@
+#!/Library/Developer/CommandLineTools/usr/bin/python3
+
+import sys
+sys.path.append('/Library/Developer/CommandLineTools/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/Python')
+import lldb
+import os
+
+INDENT = '    '
+
+def disassemble_instructions(insts):
+    for i in insts:
+        print(i)
+
+# Set the path to the executable to debug
+exe = "./build/malloc"
+
+# Create a new debugger instance
+debugger = lldb.SBDebugger.Create()
+
+# When we step or continue, don't return from the function until the process
+# stops. Otherwise we would have to handle the process events ourselves which, while doable is
+#a little tricky.  We do this by setting the async mode to false.
+debugger.SetAsync (False)
+
+# Create a target from a file and arch
+target = debugger.CreateTargetWithFileAndArch (exe, lldb.LLDB_ARCH_DEFAULT)
+
+if target:
+    # If the target is valid set a breakpoint at main
+    main_bp = target.BreakpointCreateByName ("main", target.GetExecutable().GetFilename())
+    # Launch the process. Since we specified synchronous mode, we won't return
+    # from this function until we hit the breakpoint at main
+    process = target.LaunchSimple (None, None, os.getcwd())
+
+    # Make sure the launch went ok
+    if process:
+        # Print some simple process info
+        state = process.GetState ()
+        if state == lldb.eStateStopped:
+            # Get the first thread
+            thread = process.GetThreadAtIndex (0)
+            if thread:
+                frame = thread.GetFrameAtIndex (0)
+                if frame:
+                    context = frame.GetSymbolContext(lldb.eSymbolContextEverything)
+                    module = context.GetModule()
+
+                    for sec in module.section_iter():
+                        print(sec)
+
+                        number_subsections = len(sec)
+                        if number_subsections > 0:
+        
+                            #print(f"{INDENT}Number of subsections: {number_subsections}")
+                            for subsec in sec:
+                                print(f"{INDENT}{repr(subsec)}")
+                        
