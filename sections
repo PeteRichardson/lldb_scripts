@@ -1,57 +1,32 @@
 #!/Library/Developer/CommandLineTools/usr/bin/python3
+# NOTE:  must use the python3 in the CommandLineTools directory, not the Homebrew python3
+#        because the Homebrew python3 does not have the lldb module
 
+# make lldb module available
 import sys
 sys.path.append('/Library/Developer/CommandLineTools/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/Python')
 import lldb
 import os
 
-INDENT = '    '
+if len(sys.argv) < 2:
+    print("Usage:  sections <executable>")
+    sys.exit(1)
 
-def disassemble_instructions(insts):
-    for i in insts:
-        print(i)
+exe = sys.argv[1]
 
-# Set the path to the executable to debug
-exe = "./build/malloc"
+if os.path.exists(exe) == False:
+    print(f"# File '{exe}' does not exist.", file=sys.stderr)
+    sys.exit(1)
 
-# Create a new debugger instance
+# Create a new debugger instance and a target
 debugger = lldb.SBDebugger.Create()
-
-# When we step or continue, don't return from the function until the process
-# stops. Otherwise we would have to handle the process events ourselves which, while doable is
-#a little tricky.  We do this by setting the async mode to false.
-debugger.SetAsync (False)
-
-# Create a target from a file and arch
-target = debugger.CreateTargetWithFileAndArch (exe, lldb.LLDB_ARCH_DEFAULT)
+target = debugger.CreateTarget (exe, None, None, False, lldb.SBError())
 
 if target:
-    # If the target is valid set a breakpoint at main
-    main_bp = target.BreakpointCreateByName ("main", target.GetExecutable().GetFilename())
-    # Launch the process. Since we specified synchronous mode, we won't return
-    # from this function until we hit the breakpoint at main
-    process = target.LaunchSimple (None, None, os.getcwd())
-
-    # Make sure the launch went ok
-    if process:
-        # Print some simple process info
-        state = process.GetState ()
-        if state == lldb.eStateStopped:
-            # Get the first thread
-            thread = process.GetThreadAtIndex (0)
-            if thread:
-                frame = thread.GetFrameAtIndex (0)
-                if frame:
-                    context = frame.GetSymbolContext(lldb.eSymbolContextEverything)
-                    module = context.GetModule()
-
-                    for sec in module.section_iter():
-                        print(sec)
-
-                        number_subsections = len(sec)
-                        if number_subsections > 0:
-        
-                            #print(f"{INDENT}Number of subsections: {number_subsections}")
-                            for subsec in sec:
-                                print(f"{INDENT}{repr(subsec)}")
-                        
+    for module in target.module_iter():
+        for sec in module.section_iter():
+            print(sec)
+            for subsec in sec:
+                print(f"    {repr(subsec)}")
+else:
+    print("# Failed to create target.  Check the filetype.", file=sys.stderr)       
