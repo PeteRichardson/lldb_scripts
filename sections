@@ -9,6 +9,7 @@ import lldb
 import os
 
 import argparse
+import typing
 
 def validate_binary(path):
     if os.path.exists(path) == False:
@@ -25,6 +26,13 @@ def get_parser():
     parser.add_argument('-k', '--skip-subsections', action='store_true', help='do not list subsections')
     return parser
 
+def dump_section(sec: lldb.SBSection, module_name:str, indent: str):
+    binary = module_name + "."
+    parent = f"{sec.GetParent().name}." if sec.GetParent() else ""
+    startaddr = sec.GetFileAddress()
+    endaddr = startaddr + sec.size
+    print(f"{indent}[0x{startaddr:016x}-0x{endaddr:016x}) {binary}{parent}{sec.name}")
+
 if __name__ == '__main__':
     args = get_parser().parse_args()
 
@@ -34,10 +42,11 @@ if __name__ == '__main__':
 
     if target:
         for module in target.module_iter():
+            module_name = os.path.basename(str(module.GetFileSpec()))
             for sec in module.section_iter():
-                print(sec)
+                dump_section(sec, module_name, "")
                 if not args.skip_subsections:
                     for subsec in sec:
-                        print(f"    {repr(subsec)}")
+                        dump_section(subsec, module_name, "    ")
     else:
         print("# Failed to create target.  Check the filetype.", file=sys.stderr)       
