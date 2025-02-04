@@ -2,14 +2,19 @@
 # NOTE:  must use the python3 in the CommandLineTools directory, not the Homebrew python3
 #        because the Homebrew python3 does not have the lldb module
 
-# make lldb module available
-import sys
-sys.path.append('/Library/Developer/CommandLineTools/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/Python')
-import lldb
 import os
 
+import sys
 import argparse
-import typing
+
+try:
+    # make lldb module available
+    sys.path.append('/Library/Developer/CommandLineTools/Library/PrivateFrameworks/LLDB.framework/Versions/A/Resources/Python')
+    import lldb
+except ImportError:
+        print("Failed to import lldb module.  Make sure the path to the lldb module is correct.", file=sys.stderr)
+        sys.exit(1)
+
 
 def validate_binary(path):
     if os.path.exists(path) == False:
@@ -26,15 +31,88 @@ def get_parser():
     parser.add_argument('-k', '--skip-subsections', action='store_true', help='do not list subsections')
     return parser
 
-def dump_section(sec: lldb.SBSection, module_name:str, indent: str):
-    binary = module_name + "."
-    parent = f"{sec.GetParent().name}." if sec.GetParent() else ""
+section_types = {
+	lldb.eSectionTypeInvalid: "Invalid",
+	lldb.eSectionTypeCode: "Code",
+	lldb.eSectionTypeContainer: "Container",
+	lldb.eSectionTypeData: "Data",
+	lldb.eSectionTypeDataCString: "DataCString",
+	lldb.eSectionTypeDataCStringPointers: "DataCStringPointers",
+	lldb.eSectionTypeDataSymbolAddress: "DataSymbolAddress",
+	lldb.eSectionTypeData4: "Data4",
+	lldb.eSectionTypeData8: "Data8",
+	lldb.eSectionTypeData16: "Data16",
+	lldb.eSectionTypeDataPointers: "DataPointers",
+	lldb.eSectionTypeDebug: "Debug",
+	lldb.eSectionTypeZeroFill: "ZeroFill",
+	lldb.eSectionTypeDataObjCMessageRefs: "DataObjCMessageRefs",
+	lldb.eSectionTypeDataObjCCFStrings: "DataObjCCFStrings",
+	lldb.eSectionTypeDWARFDebugAbbrev: "DWARFDebugAbbrev",
+	lldb.eSectionTypeDWARFDebugAddr: "DWARFDebugAddr",
+	lldb.eSectionTypeDWARFDebugAranges: "DWARFDebugAranges",
+	lldb.eSectionTypeDWARFDebugCuIndex: "DWARFDebugCuIndex",
+	lldb.eSectionTypeDWARFDebugFrame: "DWARFDebugFrame",
+	lldb.eSectionTypeDWARFDebugInfo: "DWARFDebugInfo",
+	lldb.eSectionTypeDWARFDebugLine: "DWARFDebugLine",
+	lldb.eSectionTypeDWARFDebugLoc: "DWARFDebugLoc",
+	lldb.eSectionTypeDWARFDebugMacInfo: "DWARFDebugMacInfo",
+	lldb.eSectionTypeDWARFDebugMacro: "DWARFDebugMacro",
+	lldb.eSectionTypeDWARFDebugPubNames: "DWARFDebugPubNames",
+	lldb.eSectionTypeDWARFDebugPubTypes: "DWARFDebugPubTypes",
+	lldb.eSectionTypeDWARFDebugRanges: "DWARFDebugRanges",
+	lldb.eSectionTypeDWARFDebugStr: "DWARFDebugStr",
+	lldb.eSectionTypeDWARFDebugStrOffsets: "DWARFDebugStrOffsets",
+	lldb.eSectionTypeDWARFAppleNames: "DWARFAppleNames",
+	lldb.eSectionTypeDWARFAppleTypes: "DWARFAppleTypes",
+	lldb.eSectionTypeDWARFAppleNamespaces: "DWARFAppleNamespaces",
+	lldb.eSectionTypeDWARFAppleObjC: "DWARFAppleObjC",
+	lldb.eSectionTypeELFSymbolTable: "ELFSymbolTable",
+	lldb.eSectionTypeELFDynamicSymbols: "ELFDynamicSymbols",
+	lldb.eSectionTypeELFRelocationEntries: "ELFRelocationEntries",
+	lldb.eSectionTypeELFDynamicLinkInfo: "ELFDynamicLinkInfo",
+	lldb.eSectionTypeEHFrame: "EHFrame",
+	lldb.eSectionTypeARMexidx: "ARMexidx",
+	lldb.eSectionTypeARMextab: "ARMextab",
+	lldb.eSectionTypeCompactUnwind: "CompactUnwind",
+	lldb.eSectionTypeGoSymtab: "GoSymtab",
+	lldb.eSectionTypeAbsoluteAddress: "AbsoluteAddress",
+	lldb.eSectionTypeDWARFGNUDebugAltLink: "DWARFGNUDebugAltLink",
+	lldb.eSectionTypeDWARFDebugTypes: "DWARFDebugTypes",
+	lldb.eSectionTypeDWARFDebugNames: "DWARFDebugNames",
+	lldb.eSectionTypeOther: "Other",
+	lldb.eSectionTypeDWARFDebugLineStr: "DWARFDebugLineStr",
+	lldb.eSectionTypeDWARFDebugRngLists: "DWARFDebugRngLists",
+	lldb.eSectionTypeDWARFDebugLocLists: "DWARFDebugLocLists",
+	lldb.eSectionTypeDWARFDebugAbbrevDwo: "DWARFDebugAbbrevDwo",
+	lldb.eSectionTypeDWARFDebugInfoDwo: "DWARFDebugInfoDwo",
+	lldb.eSectionTypeDWARFDebugStrDwo: "DWARFDebugStrDwo",
+	lldb.eSectionTypeDWARFDebugStrOffsetsDwo: "DWARFDebugStrOffsetsDwo",
+	lldb.eSectionTypeDWARFDebugTypesDwo: "DWARFDebugTypesDwo",
+	lldb.eSectionTypeDWARFDebugRngListsDwo: "DWARFDebugRngListsDwo",
+	lldb.eSectionTypeDWARFDebugLocDwo: "DWARFDebugLocDwo",
+	lldb.eSectionTypeDWARFDebugLocListsDwo: "DWARFDebugLocListsDwo",
+	lldb.eSectionTypeDWARFDebugTuIndex: "DWARFDebugTuIndex",
+}
+
+def dump_section(sec: lldb.SBSection, module_name:str):
+    sec_type = sec.GetSectionType()
+    sec_type_str  = section_types.get(sec_type, "unknown")
+    segment = ""
+    if sec_type ==  lldb.eSectionTypeContainer:
+        segment = sec.name
+    else:
+        segment = sec.GetParent().name
+
     startaddr = sec.GetFileAddress()
     endaddr = startaddr + sec.size
-    print(f"{indent}[0x{startaddr:016x}-0x{endaddr:016x}) {binary}{parent}{sec.name}")
+
+    print(f"0x{startaddr:016x},0x{endaddr:016x},{module_name},{segment},{sec.name},{sec_type_str}")
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
+
+    headers = ["Start","End","Module","Segment","Section","Sectype"]
+    print(",".join(headers))
 
     # Create a new debugger instance and a target
     debugger = lldb.SBDebugger.Create()
@@ -44,9 +122,10 @@ if __name__ == '__main__':
         for module in target.module_iter():
             module_name = os.path.basename(str(module.GetFileSpec()))
             for sec in module.section_iter():
-                dump_section(sec, module_name, "")
+                dump_section(sec, module_name)
                 if not args.skip_subsections:
                     for subsec in sec:
-                        dump_section(subsec, module_name, "    ")
+                        dump_section(subsec, module_name)
     else:
         print("# Failed to create target.  Check the filetype.", file=sys.stderr)       
+
