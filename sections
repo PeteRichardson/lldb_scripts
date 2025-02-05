@@ -6,6 +6,7 @@ import os
 
 import sys
 import argparse
+from functools import lru_cache
 
 try:
     # make lldb module available
@@ -31,71 +32,12 @@ def get_parser():
     parser.add_argument('-k', '--skip-subsections', action='store_true', help='do not list subsections')
     return parser
 
-section_types = {
-	lldb.eSectionTypeInvalid: "Invalid",
-	lldb.eSectionTypeCode: "Code",
-	lldb.eSectionTypeContainer: "Container",
-	lldb.eSectionTypeData: "Data",
-	lldb.eSectionTypeDataCString: "DataCString",
-	lldb.eSectionTypeDataCStringPointers: "DataCStringPointers",
-	lldb.eSectionTypeDataSymbolAddress: "DataSymbolAddress",
-	lldb.eSectionTypeData4: "Data4",
-	lldb.eSectionTypeData8: "Data8",
-	lldb.eSectionTypeData16: "Data16",
-	lldb.eSectionTypeDataPointers: "DataPointers",
-	lldb.eSectionTypeDebug: "Debug",
-	lldb.eSectionTypeZeroFill: "ZeroFill",
-	lldb.eSectionTypeDataObjCMessageRefs: "DataObjCMessageRefs",
-	lldb.eSectionTypeDataObjCCFStrings: "DataObjCCFStrings",
-	lldb.eSectionTypeDWARFDebugAbbrev: "DWARFDebugAbbrev",
-	lldb.eSectionTypeDWARFDebugAddr: "DWARFDebugAddr",
-	lldb.eSectionTypeDWARFDebugAranges: "DWARFDebugAranges",
-	lldb.eSectionTypeDWARFDebugCuIndex: "DWARFDebugCuIndex",
-	lldb.eSectionTypeDWARFDebugFrame: "DWARFDebugFrame",
-	lldb.eSectionTypeDWARFDebugInfo: "DWARFDebugInfo",
-	lldb.eSectionTypeDWARFDebugLine: "DWARFDebugLine",
-	lldb.eSectionTypeDWARFDebugLoc: "DWARFDebugLoc",
-	lldb.eSectionTypeDWARFDebugMacInfo: "DWARFDebugMacInfo",
-	lldb.eSectionTypeDWARFDebugMacro: "DWARFDebugMacro",
-	lldb.eSectionTypeDWARFDebugPubNames: "DWARFDebugPubNames",
-	lldb.eSectionTypeDWARFDebugPubTypes: "DWARFDebugPubTypes",
-	lldb.eSectionTypeDWARFDebugRanges: "DWARFDebugRanges",
-	lldb.eSectionTypeDWARFDebugStr: "DWARFDebugStr",
-	lldb.eSectionTypeDWARFDebugStrOffsets: "DWARFDebugStrOffsets",
-	lldb.eSectionTypeDWARFAppleNames: "DWARFAppleNames",
-	lldb.eSectionTypeDWARFAppleTypes: "DWARFAppleTypes",
-	lldb.eSectionTypeDWARFAppleNamespaces: "DWARFAppleNamespaces",
-	lldb.eSectionTypeDWARFAppleObjC: "DWARFAppleObjC",
-	lldb.eSectionTypeELFSymbolTable: "ELFSymbolTable",
-	lldb.eSectionTypeELFDynamicSymbols: "ELFDynamicSymbols",
-	lldb.eSectionTypeELFRelocationEntries: "ELFRelocationEntries",
-	lldb.eSectionTypeELFDynamicLinkInfo: "ELFDynamicLinkInfo",
-	lldb.eSectionTypeEHFrame: "EHFrame",
-	lldb.eSectionTypeARMexidx: "ARMexidx",
-	lldb.eSectionTypeARMextab: "ARMextab",
-	lldb.eSectionTypeCompactUnwind: "CompactUnwind",
-	lldb.eSectionTypeGoSymtab: "GoSymtab",
-	lldb.eSectionTypeAbsoluteAddress: "AbsoluteAddress",
-	lldb.eSectionTypeDWARFGNUDebugAltLink: "DWARFGNUDebugAltLink",
-	lldb.eSectionTypeDWARFDebugTypes: "DWARFDebugTypes",
-	lldb.eSectionTypeDWARFDebugNames: "DWARFDebugNames",
-	lldb.eSectionTypeOther: "Other",
-	lldb.eSectionTypeDWARFDebugLineStr: "DWARFDebugLineStr",
-	lldb.eSectionTypeDWARFDebugRngLists: "DWARFDebugRngLists",
-	lldb.eSectionTypeDWARFDebugLocLists: "DWARFDebugLocLists",
-	lldb.eSectionTypeDWARFDebugAbbrevDwo: "DWARFDebugAbbrevDwo",
-	lldb.eSectionTypeDWARFDebugInfoDwo: "DWARFDebugInfoDwo",
-	lldb.eSectionTypeDWARFDebugStrDwo: "DWARFDebugStrDwo",
-	lldb.eSectionTypeDWARFDebugStrOffsetsDwo: "DWARFDebugStrOffsetsDwo",
-	lldb.eSectionTypeDWARFDebugTypesDwo: "DWARFDebugTypesDwo",
-	lldb.eSectionTypeDWARFDebugRngListsDwo: "DWARFDebugRngListsDwo",
-	lldb.eSectionTypeDWARFDebugLocDwo: "DWARFDebugLocDwo",
-	lldb.eSectionTypeDWARFDebugLocListsDwo: "DWARFDebugLocListsDwo",
-	lldb.eSectionTypeDWARFDebugTuIndex: "DWARFDebugTuIndex",
-}
-
-def get_section_type_name(sec_type):
-	return section_types.get(sec_type, "unknown")
+@lru_cache(None)
+def get_section_type_name(section_type):
+    for name in dir(lldb):
+        if name.startswith("eSectionType") and getattr(lldb, name) == section_type:
+            return name[12:]   # remove eSectionType prefix
+    return "Unknown"
 
 def calc_section(sec: lldb.SBSection, module_name:str):
     sec_type = sec.GetSectionType()
@@ -109,7 +51,7 @@ def calc_section(sec: lldb.SBSection, module_name:str):
     startaddr = sec.GetFileAddress()
     endaddr = startaddr + sec.size
 
-    return (f"{startaddr:x}", f"{endaddr:x}", f"{sec.size:x}", module_name, segment, sec.name, sec_type_str)
+    return (f"{startaddr:x}", f"{endaddr:x}", f"{sec.size}", module_name, segment, sec.name, sec_type_str)
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
@@ -140,4 +82,4 @@ if __name__ == '__main__':
             maxlens[i] = max(maxlens[i], len(str(sec[i])))
     
     for sec in seclist:
-        print(f"0x{sec[0]:>{maxlens[0]}},0x{sec[1]:>{maxlens[1]}},0x{sec[2]:>{maxlens[2]}},{sec[3]},{sec[4]},{sec[5]},{sec[6]}")
+        print(f"0x{sec[0]:>{maxlens[0]}},0x{sec[1]:>{maxlens[1]}},{sec[2]:>{maxlens[2]}},{sec[3]},{sec[4]},{sec[5]},{sec[6]}")
