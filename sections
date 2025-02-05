@@ -94,7 +94,7 @@ section_types = {
 	lldb.eSectionTypeDWARFDebugTuIndex: "DWARFDebugTuIndex",
 }
 
-def dump_section(sec: lldb.SBSection, module_name:str):
+def calc_section(sec: lldb.SBSection, module_name:str):
     sec_type = sec.GetSectionType()
     sec_type_str  = section_types.get(sec_type, "unknown")
     segment = ""
@@ -106,26 +106,35 @@ def dump_section(sec: lldb.SBSection, module_name:str):
     startaddr = sec.GetFileAddress()
     endaddr = startaddr + sec.size
 
-    print(f"0x{startaddr:016x},0x{endaddr:016x},{module_name},{segment},{sec.name},{sec_type_str}")
+    return (f"{startaddr:x}", f"{endaddr:x}", f"{sec.size:x}", module_name, segment, sec.name, sec_type_str)
 
 if __name__ == '__main__':
     args = get_parser().parse_args()
 
-    headers = ["Start","End","Module","Segment","Section","Sectype"]
+    headers = ["Start","End","Size","Module","Segment","Section","Sectype"]
     print(",".join(headers))
 
     # Create a new debugger instance and a target
     debugger = lldb.SBDebugger.Create()
     target = debugger.CreateTarget (args.binary, None, None, args.dependencies, lldb.SBError())
 
+    seclist = []
     if target:
         for module in target.module_iter():
             module_name = os.path.basename(str(module.GetFileSpec()))
             for sec in module.section_iter():
-                dump_section(sec, module_name)
+                seclist.append(calc_section(sec, module_name))
                 if not args.skip_subsections:
                     for subsec in sec:
-                        dump_section(subsec, module_name)
+                        seclist.append(calc_section(subsec, module_name))
     else:
         print("# Failed to create target.  Check the filetype.", file=sys.stderr)       
 
+    # get max lengths for formatting
+    maxlens = [0] * len(headers)
+    for sec in seclist:
+        for i in range(len(sec)):
+            maxlens[i] = max(maxlens[i], len(str(sec[i])))
+    
+    for sec in seclist:
+        print(f"0x{sec[0]:>{maxlens[0]}},0x{sec[1]:>{maxlens[1]}},0x{sec[2]:>{maxlens[2]}},{sec[3]},{sec[4]},{sec[5]},{sec[6]}")
