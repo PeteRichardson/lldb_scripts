@@ -94,9 +94,12 @@ section_types = {
 	lldb.eSectionTypeDWARFDebugTuIndex: "DWARFDebugTuIndex",
 }
 
+def get_section_type_name(sec_type):
+	return section_types.get(sec_type, "unknown")
+
 def calc_section(sec: lldb.SBSection, module_name:str):
     sec_type = sec.GetSectionType()
-    sec_type_str  = section_types.get(sec_type, "unknown")
+    sec_type_str  = get_section_type_name(sec_type)
     segment = ""
     if sec_type ==  lldb.eSectionTypeContainer:
         segment = sec.name
