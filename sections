@@ -3,7 +3,6 @@
 #        because the Homebrew python3 does not have the lldb module
 
 import os
-
 import sys
 import argparse
 from functools import lru_cache
@@ -24,13 +23,28 @@ def validate_binary(path):
         raise argparse.ArgumentTypeError(f"'{path}' is not a file.")
     return path
 
-def get_parser():
-    parser = argparse.ArgumentParser(description='List sections in a binary file (executable, shared library, object file, etc.) using lldb')
-    parser.add_argument('binary', help='path to the binary to examine.',  type=validate_binary)
+def parse_args(argv):
+    parser = argparse.ArgumentParser(
+        description='List sections in a binary file (executable, shared library, object file, etc.) using lldb'
+    )
+    parser.add_argument('binary',
+        help='path to the binary to examine.',
+        type=validate_binary
+    )
     #parser.add_argument('-c', '--csv', action='store_true', help='output in csv format')
-    parser.add_argument('-d', '--dependencies', action='store_true', help='also examine dependent binaries')
-    parser.add_argument('-k', '--skip-subsections', action='store_true', help='do not list subsections')
-    return parser
+    parser.add_argument('-d',
+        '--dependencies',
+        action='store_true',
+        help='also examine dependent binaries'
+    )
+    parser.add_argument('-k',
+        '--skip-subsections',
+        action='store_true',
+        help='do not list subsections'
+    )
+    
+    result_args = parser.parse_args(argv[1:])
+    return result_args
 
 @lru_cache(None)
 def get_section_type_name(section_type):
@@ -39,7 +53,8 @@ def get_section_type_name(section_type):
             return name[12:]   # remove eSectionType prefix
     return "Unknown"
 
-def calc_section(sec: lldb.SBSection, module_name:str):
+def build_section(sec: lldb.SBSection, module_name:str):
+    '''Return a tuple  containing info about one section'''
     sec_type = sec.GetSectionType()
     sec_type_str  = get_section_type_name(sec_type)
     segment = ""
@@ -51,14 +66,10 @@ def calc_section(sec: lldb.SBSection, module_name:str):
     startaddr = sec.GetFileAddress()
     endaddr = startaddr + sec.size
 
-    return (f"{startaddr:x}", f"{endaddr:x}", f"{sec.size}", module_name, segment, sec.name, sec_type_str)
+    return (f"{startaddr}", f"{endaddr}", f"{sec.size}", module_name, segment, sec.name, sec_type_str)
 
-if __name__ == '__main__':
-    args = get_parser().parse_args()
-
-    headers = ["Start","End","Size","Module","Segment","Section","Sectype"]
-    print(",".join(headers))
-
+def get_sections(args):
+    '''Return a list of section tuples'''
     # Create a new debugger instance and a target
     debugger = lldb.SBDebugger.Create()
     target = debugger.CreateTarget (args.binary, None, None, args.dependencies, lldb.SBError())
@@ -68,18 +79,37 @@ if __name__ == '__main__':
         for module in target.module_iter():
             module_name = os.path.basename(str(module.GetFileSpec()))
             for sec in module.section_iter():
-                seclist.append(calc_section(sec, module_name))
+                seclist.append(build_section(sec, module_name))
                 if not args.skip_subsections:
                     for subsec in sec:
-                        seclist.append(calc_section(subsec, module_name))
+                        seclist.append(build_section(subsec, module_name))
+        return seclist
     else:
         print("# Failed to create target.  Check the filetype.", file=sys.stderr)       
 
-    # get max lengths for formatting
+
+def dump_sections(seclist):
+    '''dump section list as csv'''
+    headers = ["start","end","size","module","segment","section","type"]
+    print(",".join(headers))
+
+	# get max lengths for formatting
     maxlens = [0] * len(headers)
     for sec in seclist:
-        for i in range(len(sec)):
-            maxlens[i] = max(maxlens[i], len(str(sec[i])))
+        for i in [0,1,2]:
+            maxlens[i] = max(maxlens[i], len(str(hex(int(sec[i])))))
     
     for sec in seclist:
-        print(f"0x{sec[0]:>{maxlens[0]}},0x{sec[1]:>{maxlens[1]}},{sec[2]:>{maxlens[2]}},{sec[3]},{sec[4]},{sec[5]},{sec[6]}")
+        print(f"{hex(int(sec[0])): >{maxlens[0]}}", end="")
+        print(f",{hex(int(sec[1])): >{maxlens[1]}}", end="")
+        print(f",{hex(int(sec[2])): >{maxlens[2]}}", end="")
+        print(f",{sec[3]}", end="")
+        print(f",{sec[4]}", end="")
+        print(f",{sec[5]}", end="")
+        print(f",{sec[6]}", end="")
+        print()
+
+if __name__ == '__main__':
+    args = parse_args(sys.argv)
+    sections = get_sections(args)
+    dump_sections(sections)
