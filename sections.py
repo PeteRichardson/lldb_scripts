@@ -32,15 +32,18 @@ def parse_args(argv):
         action='store_true',
         help='output in csv format'
     )
-    parser.add_argument('-d',
-        '--dependencies',
+    parser.add_argument('-d', '--decimal',
         action='store_true',
-        help='also examine dependent binaries'
+        help='output addresses and sizes in decimal (default is hex)'
     )
-    parser.add_argument('-k',
-        '--skip-subsections',
+    parser.add_argument('-a', '--all',
+        dest='dependencies',
         action='store_true',
-        help='do not list subsections'
+        help='include all dependent binaries'
+    )
+    parser.add_argument('-s', '--skip-subsections',
+        action='store_true',
+        help='do not list subsections (list only container sections (i.e. segments))'
     )
     
     result_args = parser.parse_args(argv)
@@ -66,11 +69,7 @@ def build_section(sec: lldb.SBSection, module_name:str):
     startaddr = sec.GetFileAddress()
     endaddr = startaddr + sec.size
 
-    return [
-        f"{hex(int(startaddr))}",
-        f"{hex(int(endaddr))}",
-        f"{hex(int(sec.size))}",
-        module_name, segment, sec.name, sec_type_str]
+    return [startaddr, endaddr, sec.size, module_name, segment, sec.name, sec_type_str]
 
 def get_sections(args, debugger):
     '''Return a list of section tuples'''
@@ -97,37 +96,23 @@ def get_sections(args, debugger):
     else:
         print("# Failed to create target.  Check the filetype.", file=sys.stderr)       
 
-headers = ["start","end","size","module","segment","section","type"]
 
 def dump_sections(args, seclist):
+    headers = ["start","end","size","module","segment","section","type"]
+
+    if not args.decimal:   # to hex at the last minute
+        for sec in seclist:
+            sec[0] = hex(sec[0])
+            sec[1] = hex(sec[1])
+            sec[2] = hex(sec[2])
+
     if args.csv:
-        dump_sections_csv(args, seclist)
+        print(",".join(headers))
+        for sec in seclist:
+            print(f"{sec[0]},{sec[1]},{sec[2]},{sec[3]},{sec[4]},{sec[5]},{sec[6]}")
     else:
-        dump_sections_table(args, seclist)
-
-def dump_sections_csv(args, seclist):
-    '''dump section list as csv'''
-    print(",".join(headers))
-
-	# get max lengths for formatting
-    maxlens = [0] * len(headers)
-    for sec in seclist:
-        for i in [0,1,2]:
-            maxlens[i] = max(maxlens[i], len(str(sec[i])))
-    
-    for sec in seclist:
-        print(f"{sec[0]: >{maxlens[0]}}", end="")
-        print(f",{sec[1]: >{maxlens[1]}}", end="")
-        print(f",{sec[2]: >{maxlens[2]}}", end="")
-        print(f",{sec[3]}", end="")
-        print(f",{sec[4]}", end="")
-        print(f",{sec[5]}", end="")
-        print(f",{sec[6]}", end="")
-        print()
-
-def dump_sections_table(args, seclist):
-     alignment = ("right", "right", "right", "left", "left", "left", "left")
-     print(tabulate(seclist, headers, tablefmt="simple", colalign=alignment))
+        alignment = ("right", "right", "right", "left", "left", "left", "left")
+        print(tabulate(seclist, headers, tablefmt="simple", colalign=alignment))
 
 def sections(debugger, command, result, internal_dict):
     args = parse_args(command.split())
