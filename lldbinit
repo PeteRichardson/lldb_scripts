@@ -1,1 +1,7 @@
-command script import ~/projects/lldb_scripts/dslldb.py
+# To install:
+# git clone https://github.com/PeteRichardson/lldb_scripts.git ~/.lldb 
+# ln -s ~/.lldb/lldbinit ~/.lldbinit
+
+script import os, sys 
+script sys.path.append(os.path.expanduser("~/.lldb"))
+command script import sections.py
