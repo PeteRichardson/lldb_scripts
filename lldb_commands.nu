@@ -36,10 +36,11 @@ def sections [exe --decimal(-d) --all(-a) --skip-subsections(-s) --csv(-c)] {
     if ($csv) {
         $csv_output
     } else {
-        mut $output = ($csv_output | from csv)
+        # convert to nushell table.   Make size column into type filesize
+        mut $output = ($csv_output | from csv | update cells -c [size] { |$value| ($value | into int| into filesize )})
 
         if $decimal {
-           $output = $output | update cells -c [start, end, size] { |$value| ($value | into int )}
+           $output = $output | update cells -c [start, end] { |$value| ($value | into int )}
         } 
         $output
     }
