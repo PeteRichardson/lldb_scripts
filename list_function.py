@@ -138,7 +138,7 @@ def list_function(debugger, command, result, internal_dict):
             # Account for 0-based line numbering in file
             for i in range(start_line - 1, end_line):
                 if i < len(lines):  # Protect against EOF
-                    result.AppendMessage(f"{i + 1:4d}: {lines[i].rstrip()}")
+                    result.AppendMessage(f"{lines[i].rstrip()}")
     except Exception as e:
         result.AppendMessage(f"Error reading source file: {str(e)}")
 

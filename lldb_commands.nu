@@ -46,6 +46,19 @@ def sections [exe --decimal(-d) --all(-a) --skip-subsections(-s) --csv(-c)] {
     }
 }
 
+def lf [exe func --snip(-s)] {
+    let lldb_cmd = "lf " + $func
+    lldb -b -o $lldb_cmd $exe | tail -n +7 | bat -l c
+}
+# TODO: re-implement nushell lf command just parse the filename and line numbers
+# from the lldb output and then use bat to display that portion of the file.
+# e.g. bat -r 25:50 /Users/pete/practice/c/pth/main.c
+#
+# Benefits:
+# 1. bat can handle the syntax highlighting, line numbers, file name
+# 4. won't need to tail -n +7 or specify -l c
+# 5. bat can handle the file not found | not readable | not a text file, etc
+
 
 # Doesn't work yet!
 def "format hex" [columns: list<string>] {
