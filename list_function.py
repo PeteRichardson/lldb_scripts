@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 
 import lldb
+import os
+
+def __lldb_init_module(debugger, internal_dict):
+    debugger.HandleCommand('command script add -f list_function.list_function listfunc')
 
 def get_function_by_name(target, function_name):
     """Find a function by name in the target"""
@@ -8,26 +12,30 @@ def get_function_by_name(target, function_name):
         for symbol in module:
             if symbol.GetType() == lldb.eSymbolTypeCode:
                 if symbol.GetName() == function_name:
-                    function = symbol.GetStartAddress().GetFunction()
-                    print(f"{function.name} 0x{function.GetStartAddress()}-0x{function.GetEndAddress()}")
-                    return function
+                    return symbol.GetStartAddress().GetFunction()
     return None
 
-def get_function(debugger, command, result, internal_dict):
-    target = debugger.GetSelectedTarget()
-    if not target:
-        result.AppendMessage("No target available.")
-        return
+def get_file_line_count(filepath):
+    """Get the total number of lines in a file"""
+    try:
+        with open(filepath, 'r') as f:
+            return sum(1 for _ in f)
+    except Exception as e:
+        return None
+
+def find_next_function_start(target, current_addr):
+    """Find the start address of the next function after the given address"""
+    next_start = None
+    current_offset = current_addr.GetLoadAddress(target)
     
-    # Parse command argument
-    command = command.strip()
-    
-    if command:  # Function name provided
-        function = get_function_by_name(target, command)
-        result.AppendMessage(f"Function: {command}")
-        if not function:
-            result.AppendMessage(f"Could not find function named '{command}'")
-            return
+    for module in target.module_iter():
+        for symbol in module:
+            if symbol.GetType() == lldb.eSymbolTypeCode:
+                addr = symbol.GetStartAddress().GetLoadAddress(target)
+                if addr > current_offset:
+                    if next_start is None or addr < next_start:
+                        next_start = addr
+    return next_start
 
 def list_function(debugger, command, result, internal_dict):
     """Lists the entire source code of a function in LLDB.
@@ -67,33 +75,54 @@ def list_function(debugger, command, result, internal_dict):
         if not function:
             result.AppendMessage("No function found in current frame.")
             return
-        
-    # Get function boundaries
+    
+    # Get function start information
     start_addr = function.GetStartAddress()
-    end_addr = function.GetEndAddress()
-    
-    if not start_addr or not end_addr:
-        result.AppendMessage("Could not determine function boundaries.")
+    if not start_addr:
+        result.AppendMessage("Could not determine function start.")
         return
     
-    # Get source file and lines
     start_line_entry = start_addr.GetLineEntry()
-    end_line_entry = end_addr.GetLineEntry()
-    
     if not start_line_entry:
-        result.AppendMessage("Could not determine function starting line.")
+        result.AppendMessage("Could not determine source lines.")
         return
-    
     
     source_file = start_line_entry.GetFileSpec()
     start_line = start_line_entry.GetLine()
-    if end_line_entry:
-        end_line = end_line_entry.GetLine() - 1
-    else:
-        end_line = start_line + 10
     
-    if not source_file or not start_line or not end_line:
+    if not source_file or not start_line:
         result.AppendMessage("Could not get source file information.")
+        return
+    
+    # Try to get end line through various methods
+    end_line = None
+    
+    # Method 1: Try normal end address
+    end_addr = function.GetEndAddress()
+    if end_addr:
+        end_line_entry = end_addr.GetLineEntry()
+        if end_line_entry:
+            end_line = end_line_entry.GetLine() - 2
+    
+    # Method 2: If that failed, try to find next function's start
+    if not end_line:
+        next_func_addr = find_next_function_start(target, start_addr)
+        if next_func_addr:
+            addr = target.ResolveLoadAddress(next_func_addr)
+            if addr:
+                line_entry = addr.GetLineEntry()
+                if line_entry:
+                    end_line = line_entry.GetLine() - 2
+    
+    # Method 3: If still no end_line, use file length
+    if not end_line:
+        file_path = os.path.join(source_file.GetDirectory(), source_file.GetFilename())
+        total_lines = get_file_line_count(file_path)
+        if total_lines:
+            end_line = total_lines
+    
+    if not end_line:
+        result.AppendMessage("Could not determine function end line.")
         return
     
     # Print function name and location
@@ -108,10 +137,10 @@ def list_function(debugger, command, result, internal_dict):
             
             # Account for 0-based line numbering in file
             for i in range(start_line - 1, end_line):
-                result.AppendMessage(f"{i + 1:4d}: {lines[i].rstrip()}")
+                if i < len(lines):  # Protect against EOF
+                    result.AppendMessage(f"{i + 1:4d}: {lines[i].rstrip()}")
     except Exception as e:
         result.AppendMessage(f"Error reading source file: {str(e)}")
 
 def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand('command script add -f list_function.list_function lf')
-    print('The "lf" command has been installed and is ready for use.')
