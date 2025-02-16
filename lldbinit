@@ -5,3 +5,4 @@
 script import os, sys 
 script sys.path.append(os.path.expanduser("~/.lldb"))
 command script import sections.py
+command script import list_function.py
