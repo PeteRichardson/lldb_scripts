@@ -1,3 +1,5 @@
+#/usr/bin/python3
+
 def __lldb_init_module(debugger, internal_dict):
     debugger.HandleCommand('command script add -f sections.sections sections')
 

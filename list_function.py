@@ -1,10 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
 
 import lldb
 import os
 
 def __lldb_init_module(debugger, internal_dict):
-    debugger.HandleCommand('command script add -f list_function.list_function listfunc')
+    debugger.HandleCommand('command script add -f list_function.list_function lf')
 
 def get_function_by_name(target, function_name):
     """Find a function by name in the target"""
