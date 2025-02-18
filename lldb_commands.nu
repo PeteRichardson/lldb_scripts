@@ -46,19 +46,29 @@ def sections [exe --decimal(-d) --all(-a) --skip-subsections(-s) --csv(-c)] {
     }
 }
 
-def lf [exe func --snip(-s)] {
+# Look up a function in an executable with debug info and display the source code
+# --snip or -s will display the source code without line numbers
+# Requirements:
+# 1. lldb and bat must be installed and in the PATH
+# 2. lldb must be able to find the executable and its debug info
+# 3. The function must be in the executable and have debug info
+# 4. The source code must be available
+# 5. The lldb plugin for "lf" must be installed (see list_function.py)
+def "lf" [
+    bin         # executable containing function (assumes debug info is present)
+    func        # function to look up
+    --snip(-s)  # display source code without line numbers
+    ] {
     let lldb_cmd = "lf " + $func
-    lldb -b -o $lldb_cmd $exe | tail -n +7 | bat -l c
+    let lfout = lldb -b -o $lldb_cmd $bin | lines
+    let source_file = ($lfout | get 4 | str substring 6..-1)
+    let line_numbers = ($lfout | get 5 | split row " " | get 1 | str replace "-" ":")
+    mut snip_opt = "default"
+    if $snip {
+        $snip_opt = "snip"
+    }
+    bat -r $line_numbers $source_file --style $snip_opt
 }
-# TODO: re-implement nushell lf command just parse the filename and line numbers
-# from the lldb output and then use bat to display that portion of the file.
-# e.g. bat -r 25:50 /Users/pete/practice/c/pth/main.c
-#
-# Benefits:
-# 1. bat can handle the syntax highlighting, line numbers, file name
-# 4. won't need to tail -n +7 or specify -l c
-# 5. bat can handle the file not found | not readable | not a text file, etc
-
 
 # Doesn't work yet!
 def "format hex" [columns: list<string>] {
