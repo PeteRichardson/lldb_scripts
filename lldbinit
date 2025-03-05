@@ -1,8 +1,21 @@
 # To install:
-# git clone https://github.com/PeteRichardson/lldb_scripts.git ~/.lldb 
+# git clone https://github.com/PeteRichardson/lldb_scripts.git ~/.lldb
 # ln -s ~/.lldb/lldbinit ~/.lldbinit
 
-script import os, sys 
+script import os, sys
 script sys.path.append(os.path.expanduser("~/.lldb"))
+
 command script import sections.py
 command script import list_function.py
+command script import lldbsh.py
+command script import disassembly_mode.py
+command script import stop_hook.py
+
+command alias args register read arg1 arg2 arg3 arg4 arg5 arg6
+command alias td toggle-disassembly
+command alias rr register read PC X0 X1 X2 SP FP LR
+command alias mb memory read -f Y -c 256 --
+command alias mw memory read -f x -c 64 -s 4 -- 
+command alias mg memory read -f x -c 32 -s 8 --
+command alias ma memory read -f A -c 16 -s 8 --
+
