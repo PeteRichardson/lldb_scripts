@@ -55,6 +55,10 @@ def list_function(debugger, command, result, internal_dict):
         if not function:
             result.AppendMessage(f"Could not find function named '{command}'")
             return
+            # TODO: improve user experience by listing existing functions
+            # that regex match {command}
+            # need to do the python equivalent of: image lookup -r -n {command}
+            # Output is ugly. Better if we could remove the Address: lines
     else:  # No function name - use current function
         process = target.GetProcess()
         if not process:
@@ -141,6 +145,3 @@ def list_function(debugger, command, result, internal_dict):
                     result.AppendMessage(f"{lines[i].rstrip()}")
     except Exception as e:
         result.AppendMessage(f"Error reading source file: {str(e)}")
-
-def __lldb_init_module(debugger, internal_dict):
-    debugger.HandleCommand('command script add -f list_function.list_function lf')
