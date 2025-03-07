@@ -8,7 +8,10 @@ def remove_first_line(text):
 
 class PSH:
     def __init__(self, target, extra_args, internal_dict):
-        pass
+        debugger = target.GetDebugger()
+        debugger.HandleCommand("settings set stop-line-count-before 0")
+        debugger.HandleCommand("settings set stop-line-count-after 0")
+        debugger.HandleCommand("settings set stop-disassembly-count 0")
 
     def format_grid(self, text_blocks, max_width=160):
         """Formats 4 blocks of text into a 2x2 grid with automatic column sizing."""
@@ -46,6 +49,7 @@ class PSH:
         # Print the formatted table
         stream.Print(self.format_grid(text_blocks))
         stream.Print("\n")
+        #return lldb.eReturnStatusSuccessFinishNoResult
                      
 # Auto-load the script in LLDB
 def __lldb_init_module(debugger, internal_dict):
