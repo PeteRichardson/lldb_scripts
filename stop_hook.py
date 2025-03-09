@@ -81,7 +81,9 @@ class PSH:
         source_output = source_output.expandtabs(4)
         source_output = truncate_lines(source_output, max_col_width)
 
-        text_blocks = [registers_output, stack_frame_output, disassembly_output, source_output]
+
+        sourcefile = disassembly_output.splitlines()[0].split(":")[0]
+        text_blocks = [registers_output, stack_frame_output, disassembly_output, f"{sourcefile}\n" + source_output]
         
         # Print the formatted table
         stream.Print(self.format_grid(text_blocks))
