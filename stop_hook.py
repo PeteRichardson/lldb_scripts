@@ -6,6 +6,24 @@ def remove_first_line(text):
     lines = text.splitlines()
     return "\n".join(lines[1:])  # Join all lines except the first
 
+def format_registers(registers: str):
+    """
+    Slightly improves the output of the "register read" command.
+    Right-justifies the text before the equals sign.
+    
+    Args:
+        text (str): The multiline string to process with format "name = value"
+    
+    Returns:
+        str: A new string with leading whitespace removed, equals signs aligned,
+             and names right-justified
+    """
+    result = ""
+    for line in registers.splitlines():
+        r,v = line.strip().split(" = ")
+        result = result + f"{r.rjust(4)} = {v}\n"
+    return "REGISTERS\n" + result
+
 class PSH:
     def __init__(self, target, extra_args, internal_dict):
         debugger = target.GetDebugger()
@@ -21,7 +39,7 @@ class PSH:
             [text_blocks[0], text_blocks[1]],
             [text_blocks[2], text_blocks[3]]
         ]
-        return tabulate(table_data, tablefmt="grid")
+        return tabulate(table_data, tablefmt="fancy_grid", stralign="left", colalign=("left", "left"))
     
 
     def handle_stop(self, exe_ctx, stream):
@@ -36,10 +54,11 @@ class PSH:
             return output.GetOutput().strip()
 
         # Get register values (PC, SP, LR, X0-X9, Z0-Z9 if available)
-        registers_cmd = "register read pc sp x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 fp lr"
-        registers_output = ".     " + run_lldb_cmd(registers_cmd)
-        #registers_output = remove_first_line(registers_output)
-        stack_frame_output = run_lldb_cmd("memory read -f A -c 16 -s 8 -- $SP")
+        registers_cmd = "register read x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 x10 fp lr sp pc cpsr"
+        registers_output = run_lldb_cmd(registers_cmd)
+        registers_output = format_registers(registers_output)
+        stack_output = run_lldb_cmd("memory read -f A -c 16 -s 8 -- $SP")
+        stack_frame_output = f"STACK\n{stack_output}"
         source_output = run_lldb_cmd("source list -a $PC -c 10")
         source_output = remove_first_line(source_output)
         disassembly_output = run_lldb_cmd("disassemble -p -c 10")
