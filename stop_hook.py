@@ -78,6 +78,7 @@ class PSH:
         source_output = run_lldb_cmd("source list -a $PC -c 10")
         source_output = remove_first_line(source_output)
         source_output = strip_ansi(source_output)
+        source_output = source_output.expandtabs(4)
         source_output = truncate_lines(source_output, max_col_width)
 
         text_blocks = [registers_output, stack_frame_output, disassembly_output, source_output]
