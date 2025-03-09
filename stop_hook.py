@@ -1,4 +1,6 @@
+import re
 import shutil
+
 import lldb
 from tabulate import tabulate
 
@@ -11,6 +13,14 @@ def truncate_lines(text: str, max_length: int) -> str:
     """Truncate each line in a multiline string to max_length characters."""
     return "\n".join(line[:max_length] for line in text.splitlines())
 
+def strip_ansi(text):
+    ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+    return ansi_escape.sub('', text)
+
+def ensure_ansi_reset(text: str) -> str:
+    """Ensures each line in a multiline string ends with an ANSI reset escape sequence (\x1b[0m)."""
+    RESET = "\x1b[0m"
+    return "\n".join([line + RESET if not line.endswith(RESET) else line for line in text.splitlines()])
 
 class PSH:
     def __init__(self, target, extra_args, internal_dict):
@@ -33,13 +43,6 @@ class PSH:
         """
         Slightly improves the output of the "register read" command.
         Right-justifies the text before the equals sign.
-        
-        Args:
-            text (str): The multiline string to process with format "name = value"
-        
-        Returns:
-            str: A new string with leading whitespace removed, equals signs aligned,
-                and names right-justified
         """
         result = ""
         for line in registers.splitlines():
@@ -69,11 +72,13 @@ class PSH:
         stack_output = run_lldb_cmd("memory read -f A -c 16 -s 8 -- $SP")
         stack_frame_output = f"STACK\n{stack_output}"
         stack_frame_output = truncate_lines(stack_frame_output, max_col_width)
-        source_output = run_lldb_cmd("source list -a $PC -c 10")
-        source_output = remove_first_line(source_output)
-        source_output = truncate_lines(source_output, max_col_width)
         disassembly_output = run_lldb_cmd("disassemble -p -c 10")
         disassembly_output = truncate_lines(disassembly_output, max_col_width)
+        disassembly_output = ensure_ansi_reset(disassembly_output)
+        source_output = run_lldb_cmd("source list -a $PC -c 10")
+        source_output = remove_first_line(source_output)
+        source_output = strip_ansi(source_output)
+        source_output = truncate_lines(source_output, max_col_width)
 
         text_blocks = [registers_output, stack_frame_output, disassembly_output, source_output]
         
