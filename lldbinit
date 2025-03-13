@@ -15,9 +15,9 @@ command alias args register read arg1 arg2 arg3 arg4 arg5 arg6
 command alias td toggle-disassembly
 command alias rr register read PC X0 X1 X2 SP FP LR
 command alias bp breakpoint set --skip-prologue 0 --name %1
-command alias mb memory read -f Y -c 256 --
-command alias mw memory read -f x -c 64 -s 4 -- 
-command alias mg memory read -f x -c 32 -s 8 --
+command alias mb memory read -f Y -c 128 --
+command alias mw memory read -f x -c 32 -s 4 -- 
+command alias mg memory read -f x -c 16 -s 8 --
 command alias ma memory read -f A -c 16 -s 8 --
 
 settings set auto-confirm true

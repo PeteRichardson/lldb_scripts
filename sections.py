@@ -15,7 +15,7 @@ try:
     from tabulate import tabulate
 except ImportError as exc:
     raise ImportError(
-        "# ERROR: Missing a library. Run 'pip3 install tabulate'"
+        f"# ERROR: Missing a library. Run 'pip3 install tabulate'.  running {sys.executable}"
     ) from exc
 
 
